@@ -101,7 +101,10 @@ vLLM. Options A and C patch before start, so this step is not needed.
 ### 3. Check that it works
 
 `check_deadzone.py` sends about 22 prompts of ~8K tokens, each twice, and reads
-vLLM's own cache counters. Run it while nothing else is using the endpoint:
+vLLM's own cache counters. It tolerates concurrent traffic: a sample is only
+accepted when its cache-query delta equals its own prompt-token count, so a
+request that touches the cache in the same window is what gets discarded. Run it
+while traffic is light for the cleanest result:
 
 ```bash
 pip install requests
@@ -115,7 +118,8 @@ RESULT: no dead zone (fix active, or this setup is not affected)
 ```
 
 Exit code 0 means no dead zone, 1 means dead zone present, and 2 means
-inconclusive (another request was running; re-run it).
+inconclusive (every dead-zone-length sample's cache window was contaminated by
+other traffic; re-run it).
 
 ## How to remove it
 
@@ -226,10 +230,10 @@ Zero-hit cases went from **192/768 to 0/768** in every combination.
 - **Not all of co-l's work.** This fixes the dead zone only. co-l's full patch set
   (including `03-dedupe`) reported about 147% retention on a different vLLM
   version; these numbers are not comparable to that.
-- **The check script was tested only on a fixed endpoint** (5/5 dead-zone prompts
-  hit). Its detection of the bug follows the same method as the "without fix"
-  measurements above, but the script itself has not been run against an unpatched
-  endpoint.
+- **The check script's busy-detection tolerates concurrent traffic** (each sample
+  must have a clean cache-query window, rather than requiring the endpoint to be
+  completely idle). It has been exercised on both an unpatched endpoint (reports
+  `dead zone PRESENT`) and a patched one (reports `no dead zone`).
 
 ## Files
 
